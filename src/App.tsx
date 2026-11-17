@@ -6,12 +6,12 @@ import { lerp } from '@/engine/theory';
 import { GuidePanel } from '@/components/GuidePanel';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from '@/components/Panels';
 import { NowPlaying, keyLabel } from '@/components/NowPlaying';
-import { TransportBar } from '@/components/TransportBar';
+import { PianoRollStudio, type SettingsTab } from '@/components/PianoRollStudio';
+import { TransportBar, type ViewMode } from '@/components/TransportBar';
 import { Visualizer } from '@/components/Visualizer';
 import { cn } from '@/utils/cn';
 
-type Tab = 'style' | 'composition' | 'instruments' | 'effects' | 'guide';
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'style', label: 'Style' },
   { id: 'composition', label: 'Composition' },
   { id: 'instruments', label: 'Instruments' },
@@ -29,9 +29,37 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
 
+const VIEW_KEY = 'aeon-ui-view-v1';
+interface ViewPrefs {
+  viewMode: ViewMode;
+  sideOpen: boolean;
+  bottomOpen: boolean;
+}
+
+function loadViewPrefs(): ViewPrefs {
+  const wide = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+  const defaults: ViewPrefs = { viewMode: 'standard', sideOpen: wide, bottomOpen: false };
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    if (!raw) return defaults;
+    const p = JSON.parse(raw) as Partial<ViewPrefs>;
+    return {
+      viewMode: p.viewMode === 'piano-roll' ? 'piano-roll' : 'standard',
+      sideOpen: typeof p.sideOpen === 'boolean' ? p.sideOpen : defaults.sideOpen,
+      bottomOpen: typeof p.bottomOpen === 'boolean' ? p.bottomOpen : defaults.bottomOpen,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
 export default function App() {
   const [s, setS] = useState<Settings>(initialSettings);
-  const [tab, setTab] = useState<Tab>('style');
+  const [tab, setTab] = useState<SettingsTab>('style');
+  const [initialPrefs] = useState<ViewPrefs>(loadViewPrefs);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialPrefs.viewMode);
+  const [sideOpen, setSideOpen] = useState<boolean>(initialPrefs.sideOpen);
+  const [bottomOpen, setBottomOpen] = useState<boolean>(initialPrefs.bottomOpen);
   const st = useSyncExternalStore(player.subscribe, player.getSnapshot);
 
   // push settings into the engine immediately; persist (debounced)
@@ -40,6 +68,14 @@ export default function App() {
     const id = window.setTimeout(() => saveSettings(s), 400);
     return () => window.clearTimeout(id);
   }, [s]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ viewMode, sideOpen, bottomOpen }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [viewMode, sideOpen, bottomOpen]);
 
   const update = useCallback((p: Partial<Settings>) => setS((prev) => ({ ...prev, ...p })), []);
   const updateLayer = useCallback(
@@ -88,6 +124,37 @@ export default function App() {
 
   const style = getStyle(s.style);
   const badge = STATUS_LABEL[st.status];
+
+  if (viewMode === 'piano-roll') {
+    return (
+      <PianoRollStudio
+        s={s}
+        st={st}
+        player={player}
+        tab={tab}
+        setTab={setTab}
+        tabs={TABS}
+        viewMode={viewMode}
+        onViewMode={setViewMode}
+        sideOpen={sideOpen}
+        setSideOpen={setSideOpen}
+        bottomOpen={bottomOpen}
+        setBottomOpen={setBottomOpen}
+        badge={badge}
+        update={update}
+        updateLayer={updateLayer}
+        onStyle={onStyle}
+        onPlayPause={onPlayPause}
+        onStop={() => player.stop()}
+        onRegenerate={() => player.regenerate()}
+        onDirection={() => player.changeDirection()}
+        onNext={() => player.nextSection()}
+        onSurprise={onSurprise}
+        onSeed={(n) => player.setSeed(n)}
+        onReset={onReset}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-200">
@@ -139,6 +206,8 @@ export default function App() {
         <TransportBar
           s={s}
           status={st.status}
+          viewMode={viewMode}
+          onViewMode={setViewMode}
           update={update}
           onPlayPause={onPlayPause}
           onStop={() => player.stop()}

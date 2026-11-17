@@ -16,15 +16,19 @@ export function Visualizer({
   status,
   perf,
   bpm,
+  className,
+  showMeter = true,
 }: {
   player: Player;
   status: Status;
   perf: PerfMode;
   bpm: number;
+  className?: string;
+  showMeter?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ status, perf, bpm });
-  live.current = { status, perf, bpm };
+  const live = useRef({ status, perf, bpm, showMeter });
+  live.current = { status, perf, bpm, showMeter };
 
   useEffect(() => {
     const canvas = ref.current;
@@ -65,10 +69,10 @@ export function Visualizer({
     resize();
 
     const draw = (now: number, playing: boolean) => {
-      const { bpm: tempo } = live.current;
+      const { bpm: tempo, showMeter: meterOn } = live.current;
       ctx.fillStyle = bg ?? '#070b14';
       ctx.fillRect(0, 0, w, h);
-      const drumH = 40;
+      const drumH = Math.max(40, Math.min(68, Math.round(h * 0.085)));
       const top = 10;
       const rollH = h - drumH - top - 8;
       const barDur = (4 * 60) / Math.max(40, tempo || 100);
@@ -143,7 +147,8 @@ export function Visualizer({
           ctx.globalAlpha = near ? 1 : 0.35 + 0.45 * vel;
           ctx.fillStyle = DRUM_COLORS[row];
           const rh = near ? 7 : 5;
-          ctx.fillRect(x - 1.5, h - drumH + 4 + row * 9 - (rh - 5) / 2, 3.5, rh);
+          const rowStep = (drumH - 8) / 4;
+          ctx.fillRect(x - 1.5, h - drumH + 4 + row * rowStep - (rh - 5) / 2, 3.5, rh);
         }
       }
       ctx.globalAlpha = 1;
@@ -162,12 +167,14 @@ export function Visualizer({
       ctx.fillRect(headX, top - 4, 1.5, h - top);
 
       // level meter
-      const lv = Math.min(1, player.getLevel() * 3.2);
-      level += (lv - level) * 0.4;
-      ctx.fillStyle = 'rgba(30,41,59,0.9)';
-      ctx.fillRect(w - 86, 10, 74, 5);
-      ctx.fillStyle = level > 0.85 ? '#f87171' : '#34d399';
-      ctx.fillRect(w - 86, 10, 74 * level, 5);
+      if (meterOn) {
+        const lv = Math.min(1, player.getLevel() * 3.2);
+        level += (lv - level) * 0.4;
+        ctx.fillStyle = 'rgba(30,41,59,0.9)';
+        ctx.fillRect(w - 86, 10, 74, 5);
+        ctx.fillStyle = level > 0.85 ? '#f87171' : '#34d399';
+        ctx.fillRect(w - 86, 10, 74 * level, 5);
+      }
 
       if (!playing && now <= 0) {
         ctx.fillStyle = 'rgba(148,163,184,0.75)';
@@ -199,5 +206,5 @@ export function Visualizer({
     };
   }, [player]);
 
-  return <canvas ref={ref} className="block h-60 w-full rounded-xl" aria-label="Live piano roll of the generated music" />;
+  return <canvas ref={ref} className={className ?? 'block h-60 w-full rounded-xl'} aria-label="Live piano roll of the generated music" />;
 }

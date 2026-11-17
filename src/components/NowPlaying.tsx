@@ -5,7 +5,7 @@ import { SCALE_BY_ID, NOTE_NAMES, NOTE_SHARP, NOTE_FLAT, usesFlats } from '@/eng
 import { getStyle } from '@/engine/styles';
 import { cn } from '@/utils/cn';
 
-const TYPE_STYLE: Record<string, { label: string; cls: string }> = {
+export const TYPE_STYLE: Record<string, { label: string; cls: string }> = {
   intro: { label: 'Intro', cls: 'bg-slate-500/20 text-slate-300 border-slate-500/40' },
   verse: { label: 'Verse', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/40' },
   build: { label: 'Build-up', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/40' },

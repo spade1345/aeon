@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { LAYER_DEFS, type LayerSettings, type PerfMode, type Settings } from '@/engine/settings';
 import { LAYER_PATCHES, PATCHES } from '@/engine/patches';
-import { STYLE_LIST, STYLES, type StyleId } from '@/engine/styles';
+import {
+  deleteCustomStyle,
+  getAllStyles,
+  getStyle,
+  isCustomStyle,
+  saveCustomStyle,
+  type StyleDef,
+  type StyleId,
+} from '@/engine/styles';
 import { METER_LIST, SCALES, type MeterId, type ScaleId } from '@/engine/theory';
 import type { PlayerState } from '@/engine/player';
 import { cn } from '@/utils/cn';
+import { StyleCreator } from './StyleCreator';
 import { Card, Segmented, Select, Slider, Toggle } from './ui';
 
 const KEY_OPTIONS = ['C', 'C♯ / D♭', 'D', 'D♯ / E♭', 'E', 'F', 'F♯ / G♭', 'G', 'G♯ / A♭', 'A', 'A♯ / B♭', 'B'].map((label, value) => ({
@@ -23,39 +32,136 @@ type Update = (p: Partial<Settings>) => void;
 type UpdateLayer = (i: number, p: Partial<LayerSettings>) => void;
 
 export function StylePanel({ s, onStyle }: { s: Settings; onStyle: (id: StyleId) => void }) {
+  const [styles, setStyles] = useState<StyleDef[]>(() => getAllStyles());
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [editing, setEditing] = useState<StyleDef | null>(null);
+  const [templateId, setTemplateId] = useState<string>(s.style);
+
+  const refreshStyles = () => setStyles(getAllStyles());
+
+  const openCreate = (fromId: string = s.style) => {
+    setEditing(null);
+    setTemplateId(fromId);
+    setCreatorOpen(true);
+  };
+
+  const openEdit = (st: StyleDef) => {
+    setEditing(st);
+    setTemplateId(st.id);
+    setCreatorOpen(true);
+  };
+
+  const handleSave = (def: StyleDef) => {
+    const saved = saveCustomStyle(def);
+    refreshStyles();
+    setCreatorOpen(false);
+    setEditing(null);
+    onStyle(saved.id);
+  };
+
+  const handleDelete = (st: StyleDef) => {
+    deleteCustomStyle(st.id);
+    refreshStyles();
+    if (editing?.id === st.id) {
+      setCreatorOpen(false);
+      setEditing(null);
+    }
+    if (s.style === st.id) onStyle('synthwave');
+  };
+
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {STYLE_LIST.map((st) => {
-        const active = st.id === s.style;
-        return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs text-slate-400">
+          <span>{styles.length} styles</span>
+          <span aria-hidden="true"> · </span>
+          <span>Pick a genre or create your own</span>
+        </div>
+        <div className="flex items-center gap-2">
           <button
-            key={st.id}
             type="button"
-            onClick={() => onStyle(st.id)}
-            aria-pressed={active}
-            className={cn(
-              'group rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-violet-400',
-              active ? 'border-transparent bg-slate-800' : 'border-slate-800 bg-slate-900/60 hover:border-slate-600 hover:bg-slate-900',
-            )}
-            style={active ? { boxShadow: `inset 0 0 0 2px ${st.accent}` } : undefined}
+            onClick={() => openCreate(s.style)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-100 transition-colors hover:border-violet-400 hover:bg-slate-800 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-violet-400"
           >
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: st.accent }} />
-              <span className="text-sm font-semibold text-slate-100">{st.name}</span>
-            </div>
-            <div className="mt-1 text-[11px] leading-snug text-slate-400">{st.blurb}</div>
-            <div className="mt-1.5 text-[10px] tabular-nums text-slate-500">
-              {st.bpm[0]}–{st.bpm[1]} BPM
-            </div>
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Create style
           </button>
-        );
-      })}
+        </div>
+      </div>
+
+      {creatorOpen && (
+        <StyleCreator
+          key={editing ? editing.id : `new-${templateId}`}
+          initialStyleId={templateId}
+          editingStyle={editing}
+          onSave={handleSave}
+          onCancel={() => {
+            setCreatorOpen(false);
+            setEditing(null);
+          }}
+        />
+      )}
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {styles.map((st) => {
+          const active = st.id === s.style;
+          const custom = isCustomStyle(st.id);
+          return (
+            <div
+              key={st.id}
+              className={cn(
+                'group relative flex flex-col justify-between rounded-xl border p-3 text-left transition-colors',
+                active ? 'border-transparent bg-slate-800' : 'border-slate-800 bg-slate-900/60 hover:border-slate-600 hover:bg-slate-900',
+              )}
+              style={active ? { boxShadow: `inset 0 0 0 2px ${st.accent}` } : undefined}
+            >
+              <button
+                type="button"
+                onClick={() => onStyle(st.id)}
+                aria-pressed={active}
+                className="w-full text-left focus-visible:outline-2 focus-visible:outline-violet-400 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: st.accent }} />
+                  <span className="truncate text-sm font-semibold text-slate-100">{st.name}</span>
+                </div>
+                <div className="mt-1 text-[11px] leading-snug text-slate-400">{st.blurb}</div>
+              </button>
+              <div className="mt-2 flex items-center justify-between gap-2 text-[10px] tabular-nums text-slate-500">
+                <span>
+                  {st.bpm[0]}–{st.bpm[1]} BPM{custom ? ' · Custom' : ''}
+                </span>
+                {custom && (
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(st)}
+                      className="font-medium text-slate-400 hover:text-slate-200 underline-offset-2 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(st)}
+                      className="font-medium text-slate-500 hover:text-red-300 underline-offset-2 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export function CompositionPanel({ s, update }: { s: Settings; update: Update }) {
-  const st = STYLES[s.style];
+  const st = getStyle(s.style);
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card title="Key, scale & meter">
@@ -110,7 +216,7 @@ function LayerCard({ i, s, st, updateLayer }: { i: number; s: Settings; st: Play
   const [open, setOpen] = useState(false);
   const def = LAYER_DEFS[i];
   const L = s.layers[i];
-  const style = STYLES[s.style];
+  const style = getStyle(s.style);
   const playing = st.active[i] && L.enabled && st.type !== null;
   const pool = LAYER_PATCHES[i];
   return (
@@ -139,7 +245,7 @@ function LayerCard({ i, s, st, updateLayer }: { i: number; s: Settings; st: Play
               value={L.patch}
               options={[
                 { value: 'auto', label: `Auto${L.patch === 'auto' && st.patches[i] ? `: ${PATCHES[st.patches[i]]?.name ?? ''}` : ''}` },
-                ...pool.map((id) => ({ value: id, label: PATCHES[id].name })),
+                ...pool.map((id) => ({ value: id, label: PATCHES[id]?.name ?? id })),
               ]}
               onChange={(v) => updateLayer(i, { patch: v })}
             />

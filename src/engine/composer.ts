@@ -26,7 +26,7 @@ import {
   type ScaleId,
 } from './theory';
 import { applyCadence, genDegrees, passingDegree } from './harmony';
-import { STYLES, type ArpPat, type BassMode, type CompMode, type FillKind, type StyleDef } from './styles';
+import { getStyle, STYLES, type ArpPat, type BassMode, type CompMode, type FillKind, type StyleDef } from './styles';
 import { LAYER_PATCHES, PATCHES } from './patches';
 import { invertTheme, makeTheme, transform, type Motif, type Op, type Theme } from './motif';
 import type { Settings } from './settings';
@@ -39,6 +39,9 @@ export const L_CHORDS = 2;
 export const L_ARP = 3;
 export const L_LEAD = 4;
 export const L_TEX = 5;
+export const L_COUNTER = 6;
+export const L_DRONE = 7;
+export const L_MALLET = 8;
 
 export const D_KICK = 0;
 export const D_SNARE = 1;
@@ -135,6 +138,7 @@ interface Section {
   bass: { mode: BassMode; pats: BassNote[][] };
   comp: { mode: CompMode; pat: { t: number; d: number; vel: number }[] };
   arp: { rate: number; pat: ArpPat; mask: boolean[]; oct: number };
+  mallet: { rate: number; mask: boolean[]; dir: 1 | -1 };
   lead: LeadBar[];
   theme: Theme | null;
   anchor: number;
@@ -159,14 +163,14 @@ const TYPE_E: Record<SectionType, number> = {
   bridge: -0.06,
   breakdown: -0.28,
 };
-// energy offsets for each layer (drums, bass, chords, arp, lead, texture) by section type; -9 = off
+// energy offsets for each layer (drums, bass, chords, arp, lead, texture, counter, drone, mallet) by section type; -9 = off
 const TYPE_BONUS: Record<SectionType, number[]> = {
-  intro: [-0.2, -0.1, 0.3, -0.1, -9, 0.3],
-  verse: [0, 0, 0, 0, 0, 0],
-  build: [0.1, 0.1, 0.1, 0.2, -0.1, 0],
-  chorus: [0.15, 0.1, 0.1, 0.1, 0.15, 0],
-  bridge: [-0.1, 0, 0.1, 0, 0, 0.2],
-  breakdown: [-9, -0.15, 0.3, 0.1, -0.2, 0.3],
+  intro: [-0.2, -0.1, 0.3, -0.1, -9, 0.3, -0.1, 0.25, -0.05],
+  verse: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  build: [0.1, 0.1, 0.1, 0.2, -0.1, 0, 0.05, 0.1, 0.15],
+  chorus: [0.15, 0.1, 0.1, 0.1, 0.15, 0, 0.12, 0.05, 0.1],
+  bridge: [-0.1, 0, 0.1, 0, 0, 0.2, 0.18, 0.15, 0.05],
+  breakdown: [-9, -0.15, 0.3, 0.1, -0.2, 0.3, 0.12, 0.25, 0.1],
 };
 const NEXT: Record<SectionType, [SectionType, number][]> = {
   intro: [['verse', 0.7], ['build', 0.15], ['breakdown', 0.15]],
@@ -197,7 +201,7 @@ const BUILD_FORM: FormOp[] = [
   { th: 0, sh: 3, f: true },
 ];
 
-const PATCH_KEYS = ['', 'bass', 'chords', 'arp', 'lead', 'texture'] as const;
+const PATCH_KEYS = ['', 'bass', 'chords', 'arp', 'lead', 'texture', 'counter', 'drone', 'mallet'] as const;
 
 export class Composer {
   seed: number;
@@ -221,11 +225,13 @@ export class Composer {
   private hrBars = 1;
   private bassMode: BassMode = 'groove';
   private tempoScale = 1;
-  private autoPatch: string[] = ['', '', '', '', '', ''];
+  private autoPatch: string[] = ['', '', '', '', '', '', '', '', ''];
   private prevVoicing: number[] | null = null;
   private bassPrev = 0;
   private leadPrev = 72;
   private texPrev = 84;
+  private counterPrev = 64;
+  private malletPrev = 69;
   private skip = false;
   private replan = false;
   private regenThemes = false;
@@ -254,6 +260,8 @@ export class Composer {
     this.bassPrev = 0;
     this.leadPrev = 72;
     this.texPrev = 84;
+    this.counterPrev = 64;
+    this.malletPrev = 69;
   }
   requestSkip() {
     this.skip = true;
@@ -316,7 +324,7 @@ export class Composer {
 
   // ---- song / movement state ---------------------------------------------------
   private applyStructure(s: Settings) {
-    this.style = STYLES[s.style];
+    this.style = getStyle(s.style);
     this.scale = SCALE_BY_ID[s.scale];
     this.meter = METERS[s.meter];
   }
@@ -337,7 +345,8 @@ export class Composer {
       this.newMovement(s, true);
       return;
     }
-    if (s.style !== this.style.id || s.scale !== this.scale.id || s.meter !== this.meter.id) {
+    const nextStyle = getStyle(s.style);
+    if (nextStyle !== this.style || s.scale !== this.scale.id || s.meter !== this.meter.id) {
       this.applyStructure(s);
       this.modOff = 0;
       this.setPitchContext();
@@ -392,8 +401,9 @@ export class Composer {
   private rollPatches(s: Settings, init: boolean) {
     const rng = this.rng;
     const evo = s.evolution;
-    for (let l = 1; l < 6; l++) {
-      const pool = this.style.patches[PATCH_KEYS[l] as 'bass'] ?? LAYER_PATCHES[l];
+    for (let l = 1; l < PATCH_KEYS.length; l++) {
+      const key = PATCH_KEYS[l];
+      const pool = (key ? this.style.patches[key] : null) ?? LAYER_PATCHES[l];
       if (!s.autoInstruments) {
         this.autoPatch[l] = pool[0];
       } else if (init || !this.autoPatch[l] || !pool.includes(this.autoPatch[l])) {
@@ -456,7 +466,7 @@ export class Composer {
     const amount = 0.25 + 0.75 * evo;
     const energy = clamp(s.energy + (arcV - 0.5) * 0.9 * amount + TYPE_E[type], 0.06, 1);
     const slope = type === 'build' ? 0.28 : type === 'intro' ? 0.15 : type === 'breakdown' ? 0.08 : 0;
-    const active = TYPE_BONUS[type].map((b, l) => energy + b >= st.min[l]);
+    const active = TYPE_BONUS[type].map((b, l) => energy + b >= (st.min[l] ?? 0.5));
     active[L_CHORDS] = true;
 
     if (s.tempoDrift) this.tempoScale = clamp(this.tempoScale + rng.range(-0.03, 0.03), 0.93, 1.07);
@@ -484,6 +494,7 @@ export class Composer {
       bass: this.planBass(type, hr, s),
       comp: this.planComp(type, s),
       arp: this.planArp(energy, s),
+      mallet: this.planMallet(energy, s),
       lead: this.planLead(type, bars, theme, energy, s),
       theme,
       anchor,
@@ -836,6 +847,17 @@ export class Composer {
     return { rate, pat: rng.pick(a.pats), mask, oct: a.octaves };
   }
 
+  private planMallet(energy: number, s: Settings) {
+    const rng = this.rng;
+    const rate = s.rhythmic > 0.65 && energy > 0.55 ? 1 : 2;
+    const slots = Math.ceil(this.meter.steps / rate);
+    const k = clamp(Math.round(slots * (0.28 + 0.38 * s.rhythmic)), 2, Math.max(2, slots - 1));
+    const rot = rng.int(slots);
+    const e = euclid(k, slots);
+    const mask = e.map((_, i) => e[(i + rot) % slots]);
+    return { rate, mask, dir: (rng.chance(0.5) ? 1 : -1) as 1 | -1 };
+  }
+
   // ---- bar composition ---------------------------------------------------------------
   nextBar(s: Settings): Bar {
     this.sync(s);
@@ -898,6 +920,9 @@ export class Composer {
     if (sec.active[L_ARP]) this.composeArp(sec, e, put, base);
     if (sec.active[L_LEAD]) this.composeLead(sec, bi, e, put, base, s.melodic);
     if (sec.active[L_TEX]) this.composeTexture(sec, bi, e, put, base);
+    if (sec.active[L_COUNTER]) this.composeCounter(sec, bi, e, put, base, s.melodic);
+    if (sec.active[L_DRONE]) this.composeDrone(sec, e, put, base);
+    if (sec.active[L_MALLET]) this.composeMallet(sec, bi, e, put, base);
 
     const beat = new Uint8Array(steps);
     m.starts.forEach((s0, b) => (beat[s0] = b === 0 ? 2 : 1));
@@ -1268,5 +1293,102 @@ export class Composer {
       prev = midi;
     }
     this.texPrev = prev;
+  }
+
+  private composeCounter(sec: Section, bi: number, e: number, put: Put, base: number, mc: number) {
+    const m = this.meter;
+    const rng = this.rng;
+    const steps = m.steps;
+    const n = this.scale.steps.length;
+    const center = this.style.lead.center - 7;
+    const lo = center - 7;
+    const hi = center + 8;
+    let prev = this.counterPrev;
+    const leadBar = sec.lead[bi];
+    const leadActive = sec.active[L_LEAD] && leadBar?.m;
+
+    // Derive sparse, lyrical inner voice steps: answer where the lead holds or rests, or weave contrary motion
+    const motif = sec.active[L_LEAD] ? this.themes[2].a : this.themes[1].b;
+    const rawSteps: { t: number; d: number; idx: number }[] = [];
+    if (leadActive && leadBar.m) {
+      const lNotes = leadBar.m.notes;
+      for (let k = 0; k < lNotes.length; k++) {
+        const cur = lNotes[k];
+        const nxt = lNotes[k + 1];
+        const gap = nxt ? nxt.t - cur.t : steps - cur.t;
+        if (k % 2 === 1 || gap >= 4) {
+          const t = cur.t + (gap >= 4 && cur.t + 2 < steps ? 2 : 0);
+          if (t < steps) {
+            const d = Math.max(2, Math.min(gap >= 4 ? gap - 1 : gap, steps - t));
+            // contrary motion relative to the lead contour
+            rawSteps.push({ t, d, idx: sec.anchor - n + Math.round(-cur.i * (0.6 + 0.4 * mc)) });
+          }
+        }
+      }
+    }
+    if (!rawSteps.length) {
+      for (let k = 0; k < motif.notes.length; k += 2) {
+        const nt = motif.notes[k];
+        const nxt = motif.notes[k + 2];
+        const d = nxt ? Math.min(6, nxt.t - nt.t) : Math.max(2, steps - nt.t);
+        rawSteps.push({ t: nt.t, d, idx: sec.anchor - n + nt.i });
+      }
+    }
+
+    for (let k = 0; k < rawSteps.length; k++) {
+      const r = rawSteps[k];
+      const nxt = rawSteps[k + 1];
+      const chord = this.chordAt(sec, base + r.t);
+      let midi = this.midiOfIdx(r.idx);
+      // Prefer 3rd, 7th, 9th or 5th chord tones for rich inner counter-harmony
+      if (m.w[r.t] >= 2 || rng.chance(0.75)) {
+        midi = this.snap(midi, chord.mask, prev);
+      }
+      while (midi > hi) midi -= 12;
+      while (midi < lo) midi += 12;
+      const d = nxt ? Math.min(r.d, nxt.t - r.t) : r.d;
+      put(r.t, ev(L_COUNTER, [midi], Math.max(1.4, d * 0.92), clamp(0.45 + 0.1 * m.w[r.t] + 0.15 * e, 0.25, 0.88)));
+      prev = midi;
+    }
+    this.counterPrev = prev;
+  }
+
+  private composeDrone(sec: Section, e: number, put: Put, base: number) {
+    const m = this.meter;
+    const steps = m.steps;
+    const span = Math.min(sec.hr, steps);
+    for (let s = 0; s < steps; s++) {
+      if ((base + s) % span !== 0) continue;
+      const chord = this.chordAt(sec, base + s);
+      // Pedal on tonic during intro/breakdown, otherwise follow root or fifth in warm low-mid register
+      const pc = sec.type === 'intro' || sec.type === 'breakdown' ? this.key : mod(this.key + chord.root, 12);
+      const rootMidi = lowestOfPc(pc, 38);
+      const notes = e > 0.45 && chord.iv[2] === 7 ? [rootMidi, rootMidi + 7] : [rootMidi];
+      put(s, ev(L_DRONE, notes, Math.min(span, steps - s) * 0.99, clamp(0.32 + 0.22 * e, 0.2, 0.65)));
+    }
+  }
+
+  private composeMallet(sec: Section, bi: number, e: number, put: Put, base: number) {
+    const ml = sec.mallet;
+    const m = this.meter;
+    const rng = this.rng;
+    let prev = this.malletPrev;
+    let stepIdx = bi * ml.mask.length;
+    for (let s = 0; s < m.steps; s += ml.rate) {
+      const slot = Math.floor(s / ml.rate);
+      if (!ml.mask[slot % ml.mask.length]) continue;
+      const chord = this.chordAt(sec, base + s);
+      // Build color-tone pool (3rd, 5th, 7th, 9th, root) in C4..C6
+      const colorIndices = [1, 2, 3, 4, 0].filter((idx) => chord.iv[idx] !== undefined);
+      const pickIdx = colorIndices[(stepIdx * (ml.dir > 0 ? 1 : 3)) % colorIndices.length];
+      const pc = mod(this.key + chord.root + chord.iv[pickIdx], 12);
+      let midi = nearestOfPc(pc, prev + ml.dir * 2, 60, 84);
+      if (m.w[s] >= 3 && rng.chance(0.25)) midi = clamp(midi + 12, 60, 88);
+      const vel = clamp((0.42 + 0.1 * m.w[s] + 0.18 * e) * (0.88 + 0.24 * rng.next()), 0.22, 0.92);
+      put(s, ev(L_MALLET, [midi], Math.max(1.2, ml.rate * 1.15), vel));
+      prev = midi;
+      stepIdx++;
+    }
+    this.malletPrev = prev;
   }
 }

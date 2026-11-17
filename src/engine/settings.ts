@@ -1,5 +1,5 @@
 // User-facing settings model, defaults, style application and persistence.
-import { STYLES, type StyleId } from './styles';
+import { getStyle, hasStyle, type StyleId } from './styles';
 import type { MeterId, ScaleId } from './theory';
 
 export interface LayerSettings {
@@ -45,9 +45,12 @@ export const LAYER_DEFS = [
   { id: 'arp', name: 'Arpeggio', desc: 'Broken-chord patterns', color: '#22d3ee' },
   { id: 'lead', name: 'Lead', desc: 'Motif-driven melody', color: '#34d399' },
   { id: 'texture', name: 'Texture', desc: 'Echoes and sparkle', color: '#7dd3fc' },
+  { id: 'counter', name: 'Countermelody', desc: 'Responsive inner voice', color: '#f472b6' },
+  { id: 'drone', name: 'Drone', desc: 'Sustained harmonic anchor', color: '#818cf8' },
+  { id: 'mallet', name: 'Mallet', desc: 'Polyrhythmic pitched percussion', color: '#fb923c' },
 ] as const;
 
-const DEFAULT_VOLUMES = [0.8, 0.85, 0.75, 0.55, 0.7, 0.5];
+const DEFAULT_VOLUMES = [0.8, 0.85, 0.75, 0.55, 0.7, 0.5, 0.62, 0.52, 0.58];
 
 function defaultLayers(): LayerSettings[] {
   return DEFAULT_VOLUMES.map((v) => ({
@@ -73,9 +76,9 @@ function detectPerf(): PerfMode {
 }
 
 export function defaultSettings(styleId: StyleId = 'synthwave'): Settings {
-  const st = STYLES[styleId];
+  const st = getStyle(styleId);
   return {
-    style: styleId,
+    style: st.id,
     bpm: st.bpm[2],
     keyRoot: 9, // A
     scale: st.scales[0],
@@ -101,10 +104,10 @@ export function defaultSettings(styleId: StyleId = 'synthwave'): Settings {
 
 /** Apply a style preset: tempo, scale, meter, swing and fx follow the style; sound-design resets to "auto". */
 export function applyStyle(s: Settings, id: StyleId): Settings {
-  const st = STYLES[id];
+  const st = getStyle(id);
   return {
     ...s,
-    style: id,
+    style: st.id,
     bpm: st.bpm[2],
     scale: st.scales[0],
     meter: st.meters.includes(s.meter) ? s.meter : st.meters[0],
@@ -125,7 +128,7 @@ export function loadSettings(): Settings {
     if (!raw) return base;
     const p = JSON.parse(raw) as Partial<Settings>;
     const merged: Settings = { ...base, ...p } as Settings;
-    if (!STYLES[merged.style]) return base;
+    if (!hasStyle(merged.style)) return base;
     merged.layers = base.layers.map((l, i) => ({ ...l, ...(p.layers?.[i] ?? {}) }));
     merged.bpm = Math.min(220, Math.max(40, Number(merged.bpm) || base.bpm));
     return merged;

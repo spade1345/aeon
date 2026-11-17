@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { initialSettings, player } from '@/engine/instance';
-import { applyStyle, defaultSettings, saveSettings, type LayerSettings, type Settings } from '@/engine/settings';
-import { STYLES, STYLE_LIST, type StyleId } from '@/engine/styles';
+import { applyStyle, defaultSettings, LAYER_DEFS, saveSettings, type LayerSettings, type Settings } from '@/engine/settings';
+import { getAllStyles, getStyle, type StyleId } from '@/engine/styles';
 import { lerp } from '@/engine/theory';
+import { GuidePanel } from '@/components/GuidePanel';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from '@/components/Panels';
 import { NowPlaying, keyLabel } from '@/components/NowPlaying';
 import { TransportBar } from '@/components/TransportBar';
 import { Visualizer } from '@/components/Visualizer';
 import { cn } from '@/utils/cn';
 
-type Tab = 'style' | 'composition' | 'instruments' | 'effects';
+type Tab = 'style' | 'composition' | 'instruments' | 'effects' | 'guide';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'style', label: 'Style' },
   { id: 'composition', label: 'Composition' },
   { id: 'instruments', label: 'Instruments' },
   { id: 'effects', label: 'Effects & performance' },
+  { id: 'guide', label: 'How does this work?' },
 ];
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -53,10 +55,11 @@ export default function App() {
   }, []);
 
   const onSurprise = useCallback(() => {
-    const id = pick(STYLE_LIST.filter((x) => x.id !== s.style)).id;
-    const def = STYLES[id];
+    const all = getAllStyles();
+    const candidates = all.filter((x) => x.id !== s.style);
+    const def = pick(candidates.length ? candidates : all);
     setS((prev) => ({
-      ...applyStyle(prev, id),
+      ...applyStyle(prev, def.id),
       keyRoot: Math.floor(Math.random() * 12),
       scale: pick(def.scales),
       meter: Math.random() < 0.7 ? def.meters[0] : pick(def.meters),
@@ -83,7 +86,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [onPlayPause]);
 
-  const style = STYLES[s.style];
+  const style = getStyle(s.style);
   const badge = STATUS_LABEL[st.status];
 
   return (
@@ -123,18 +126,11 @@ export default function App() {
             </span>
             <span className="rounded-md bg-slate-900/80 px-2 py-0.5 text-slate-300">{st.type ? keyLabel(st.key, st.scale) : 'Not started'}</span>
           </div>
-          <div className="pointer-events-none absolute bottom-3.5 left-4 hidden gap-3 text-[10px] text-slate-500 sm:flex">
-            {[
-              ['#fbbf24', 'Drums'],
-              ['#fb7185', 'Bass'],
-              ['#a78bfa', 'Harmony'],
-              ['#22d3ee', 'Arp'],
-              ['#34d399', 'Lead'],
-              ['#7dd3fc', 'Texture'],
-            ].map(([c, n]) => (
-              <span key={n} className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: c }} />
-                {n}
+          <div className="pointer-events-none absolute bottom-3.5 left-4 hidden flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:flex">
+            {LAYER_DEFS.map((l) => (
+              <span key={l.id} className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+                {l.name}
               </span>
             ))}
           </div>
@@ -164,7 +160,7 @@ export default function App() {
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  'shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
+                  'shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
                   tab === t.id ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200',
                 )}
               >
@@ -177,6 +173,7 @@ export default function App() {
             {tab === 'composition' && <CompositionPanel s={s} update={update} />}
             {tab === 'instruments' && <InstrumentsPanel s={s} st={st} updateLayer={updateLayer} />}
             {tab === 'effects' && <EffectsPanel s={s} st={st} update={update} onSeed={(n) => player.setSeed(n)} onReset={onReset} />}
+            {tab === 'guide' && <GuidePanel />}
           </div>
         </div>
 

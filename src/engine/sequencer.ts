@@ -4,11 +4,11 @@ import { Composer, D_KICK, type Bar, type Ev } from './composer';
 import { PATCHES, type Patch } from './patches';
 import type { Roll } from './roll';
 import type { Settings } from './settings';
-import { STYLES, type StyleId } from './styles';
-import type { Synth, NoteOpts } from './synth';
+import { getStyle } from './styles';
+import { NUM_LAYERS, type Synth, type NoteOpts } from './synth';
 import { mtof } from './theory';
 
-const PRIO = [2, 2, 2, 0, 1, 0];
+const PRIO = [2, 2, 2, 0, 1, 0, 1, 1, 0];
 
 export class Sequencer {
   nextTime = 0;
@@ -22,11 +22,11 @@ export class Sequencer {
   private curBpm: number;
   private bpmTarget: number;
   private tempoScale = 1;
-  private audible: boolean[] = [true, true, true, true, true, true];
-  private baseBright: number[] = [1, 1, 1, 1, 1, 1];
+  private audible: boolean[] = new Array(NUM_LAYERS).fill(true);
+  private baseBright: number[] = new Array(NUM_LAYERS).fill(1);
   private opts: NoteOpts[];
-  private patches: (Patch | null)[] = [null, null, null, null, null, null];
-  private lastAuto: string[] = ['', '', '', '', '', ''];
+  private patches: (Patch | null)[] = new Array(NUM_LAYERS).fill(null);
+  private lastAuto: string[] = new Array(NUM_LAYERS).fill('');
   private duckDepth = 0;
   private swingGrid: 1 | 2 = 1;
   private kit = '';
@@ -49,8 +49,9 @@ export class Sequencer {
     this.settings = s;
     const syn = this.synth;
     const single = s.perf === 'eco';
-    for (let l = 0; l < 6; l++) {
+    for (let l = 0; l < NUM_LAYERS; l++) {
       const L = s.layers[l];
+      if (!L) continue;
       this.audible[l] = L.enabled;
       syn.setLayer(l, L.volume, L.enabled);
       const o = this.opts[l];
@@ -73,8 +74,8 @@ export class Sequencer {
   }
 
   private resolvePatches() {
-    for (let l = 1; l < 6; l++) {
-      const pin = this.settings.layers[l].patch;
+    for (let l = 1; l < NUM_LAYERS; l++) {
+      const pin = this.settings.layers[l]?.patch ?? 'auto';
       const id = pin === 'auto' || !PATCHES[pin] ? this.lastAuto[l] : pin;
       this.patches[l] = PATCHES[id] ?? null;
     }
@@ -85,7 +86,7 @@ export class Sequencer {
     const m = bar.meta;
     this.bar = bar;
     this.stepInBar = 0;
-    const st = STYLES[m.styleId as StyleId];
+    const st = getStyle(m.styleId);
     this.duckDepth = st.duck;
     this.swingGrid = st.swingGrid;
     if (this.kit !== st.kit) {
@@ -94,7 +95,7 @@ export class Sequencer {
     }
     this.lastAuto = m.patches;
     this.resolvePatches();
-    for (let l = 0; l < 6; l++) this.opts[l].bright = this.baseBright[l] * (0.65 + 0.7 * m.energy);
+    for (let l = 0; l < NUM_LAYERS; l++) this.opts[l].bright = this.baseBright[l] * (0.65 + 0.7 * m.energy);
     this.tempoScale = m.tempoScale;
     this.bpmTarget = this.settings.bpm * this.tempoScale;
     this.synth.setBrightness(m.energy);
@@ -147,7 +148,7 @@ export class Sequencer {
     fq.length = n;
     for (let i = 0; i < n; i++) fq[i] = mtof(e.notes[i]);
     const dur = e.dur * stepDur;
-    const ts = l >= 2 && l !== 3 ? t + (Math.random() - 0.3) * 0.01 : t; // light humanisation (not arps/drums)
+    const ts = l >= 2 && l !== 3 && l !== 8 ? t + (Math.random() - 0.3) * 0.01 : t; // light humanisation (not arps/mallets/drums)
     // only the notes that actually sound are drawn (a chord may be thinned, or refused, by the voice budget)
     const played = syn.note(l, patch, fq, ts, dur, e.vel, this.opts[l]);
     for (let i = 0; i < played; i++) this.roll.push(t, Math.max(dur, 0.08), e.notes[i], l, e.vel);

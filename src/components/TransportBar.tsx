@@ -1,5 +1,5 @@
 import type { Status } from '@/engine/player';
-import { STYLES } from '@/engine/styles';
+import { getStyle } from '@/engine/styles';
 import type { Settings } from '@/engine/settings';
 import { cn } from '@/utils/cn';
 import { IconButton, Slider } from './ui';
@@ -32,7 +32,7 @@ export function TransportBar({
   onSurprise: () => void;
 }) {
   const playing = status === 'playing';
-  const st = STYLES[s.style];
+  const st = getStyle(s.style);
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
       <div className="flex flex-wrap items-center gap-3">

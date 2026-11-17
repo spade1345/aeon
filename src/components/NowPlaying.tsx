@@ -2,7 +2,7 @@ import type { PlayerState } from '@/engine/player';
 import { LAYER_DEFS, type Settings } from '@/engine/settings';
 import { PATCHES } from '@/engine/patches';
 import { SCALE_BY_ID, NOTE_NAMES, NOTE_SHARP, NOTE_FLAT, usesFlats } from '@/engine/theory';
-import { STYLES, type StyleId } from '@/engine/styles';
+import { getStyle } from '@/engine/styles';
 import { cn } from '@/utils/cn';
 
 const TYPE_STYLE: Record<string, { label: string; cls: string }> = {
@@ -24,7 +24,7 @@ export function keyLabel(key: number, scaleId: string | null): string {
 export function NowPlaying({ st, settings }: { st: PlayerState; settings: Settings }) {
   const idle = st.type === null;
   const ts = st.type ? TYPE_STYLE[st.type] : null;
-  const style = STYLES[(st.styleId || settings.style) as StyleId] ?? STYLES[settings.style];
+  const style = getStyle(st.styleId || settings.style);
   const chord = st.chords[st.chordIdx] ?? '·';
   const progress = st.bars > 0 ? ((st.bar + 1) / st.bars) * 100 : 0;
 

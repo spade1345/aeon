@@ -9,7 +9,7 @@ import { KITS, type Kit, type KitId, type Patch, type Wave } from './patches';
 import type { PerfMode } from './settings';
 import { clamp } from './theory';
 
-export const NUM_LAYERS = 6;
+export const NUM_LAYERS = 9;
 export interface NoteOpts {
   bright: number; // cutoff multiplier
   atk: number; // attack time multiplier
@@ -19,11 +19,11 @@ export interface NoteOpts {
   single: boolean; // eco: one oscillator per note
 }
 
-const SEND_REV = [0.12, 0.02, 0.5, 0.35, 0.35, 0.8];
-const SEND_DLY = [0, 0, 0.1, 0.45, 0.3, 0.5];
-const SEND_CHO = [0, 0, 0.5, 0.2, 0.3, 0.2];
-const PANS = [0, 0, -0.12, 0.28, 0.1, -0.3];
-const DUCKED = [false, false, true, true, false, true];
+const SEND_REV = [0.12, 0.02, 0.5, 0.35, 0.35, 0.8, 0.45, 0.72, 0.35];
+const SEND_DLY = [0, 0, 0.1, 0.45, 0.3, 0.5, 0.28, 0.15, 0.4];
+const SEND_CHO = [0, 0, 0.5, 0.2, 0.3, 0.2, 0.35, 0.45, 0.15];
+const PANS = [0, 0, -0.12, 0.28, 0.1, -0.3, -0.24, 0.05, 0.36];
+const DUCKED = [false, false, true, true, false, true, false, true, false];
 const VIB_DEPTHS = [5, 9, 14];
 
 const IR_SECONDS: Record<PerfMode, number> = { eco: 1.4, balanced: 2.2, high: 3.2 };

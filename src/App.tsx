@@ -9,7 +9,6 @@ import { NowPlaying, keyLabel } from '@/components/NowPlaying';
 import { PianoRollStudio, type RollTab, type SettingsTab } from '@/components/PianoRollStudio';
 import { TransportBar, type ViewMode } from '@/components/TransportBar';
 import { Visualizer } from '@/components/Visualizer';
-import aeonIcon from '@/assets/images/aeon_app_icon_1794879244430.jpg';
 import { cn } from '@/utils/cn';
 
 const TABS: { id: SettingsTab; label: string }[] = [
@@ -174,8 +173,8 @@ export default function App() {
         {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 overflow-hidden rounded-xl border border-slate-700/80 shadow-lg shadow-violet-900/40">
-              <img src={aeonIcon} alt="Aeon icon" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+            <div className="h-10 w-10 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950/90 shadow-lg shadow-violet-900/40">
+              <img src="/assets/aistudio/logo_2f208861.png" alt="Aeon icon" referrerPolicy="no-referrer" className="h-full w-full scale-[1.28] object-contain" />
             </div>
             <div>
               <h1 className="text-lg font-bold leading-tight tracking-tight text-white">Aeon</h1>

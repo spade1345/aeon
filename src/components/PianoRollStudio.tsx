@@ -9,6 +9,7 @@ import { keyLabel, TYPE_STYLE } from './NowPlaying';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from './Panels';
 import { TransportBar, type ViewMode } from './TransportBar';
 import { Visualizer } from './Visualizer';
+import aeonIcon from '@/assets/images/aeon_app_icon_1794879244430.jpg';
 import { Slider, Toggle } from './ui';
 
 export type SettingsTab = 'style' | 'composition' | 'instruments' | 'effects' | 'guide';
@@ -135,10 +136,8 @@ export function PianoRollStudio({
               className="border-0 bg-transparent p-0"
               leading={
                 <div className="mr-0.5 flex shrink-0 items-center gap-1.5">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow shadow-violet-900/40">
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M3 12c2.5 0 2.5-6 5-6s2.5 12 5 12 2.5-6 5-6 1.5 0 3 0" />
-                    </svg>
+                  <div className="h-7 w-7 overflow-hidden rounded-lg border border-slate-700/80 shadow shadow-violet-900/40">
+                    <img src={aeonIcon} alt="Aeon icon" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
                   </div>
                   <span className="hidden text-sm font-bold tracking-tight text-white sm:inline">Aeon</span>
                 </div>

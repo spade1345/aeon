@@ -5,7 +5,7 @@ import type { Settings } from '@/engine/settings';
 import { cn } from '@/utils/cn';
 import { IconButton, Slider } from './ui';
 
-export type ViewMode = 'standard' | 'piano-roll';
+export type ViewMode = 'piano-roll' | 'legacy';
 
 const Icon = ({ d, className }: { d: string; className?: string }) => (
   <svg viewBox="0 0 24 24" className={cn('h-4 w-4', className)} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -97,18 +97,6 @@ export function TransportBar({
         >
           <button
             type="button"
-            onClick={() => onViewMode('standard')}
-            aria-pressed={viewMode === 'standard'}
-            className={cn(
-              'whitespace-nowrap rounded-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-violet-400',
-              iconActions ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs',
-              viewMode === 'standard' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200',
-            )}
-          >
-            Standard
-          </button>
-          <button
-            type="button"
             onClick={() => onViewMode('piano-roll')}
             aria-pressed={viewMode === 'piano-roll'}
             className={cn(
@@ -118,6 +106,18 @@ export function TransportBar({
             )}
           >
             Piano roll
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewMode('legacy')}
+            aria-pressed={viewMode === 'legacy'}
+            className={cn(
+              'whitespace-nowrap rounded-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-violet-400',
+              iconActions ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs',
+              viewMode === 'legacy' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200',
+            )}
+          >
+            Legacy
           </button>
         </div>
 

@@ -39,13 +39,13 @@ interface ViewPrefs {
 }
 
 function loadViewPrefs(): ViewPrefs {
-  const defaults: ViewPrefs = { viewMode: 'standard', dockOpen: false, rollTab: 'live' };
+  const defaults: ViewPrefs = { viewMode: 'piano-roll', dockOpen: false, rollTab: 'live' };
   try {
     const raw = localStorage.getItem(VIEW_KEY);
     if (!raw) return defaults;
-    const p = JSON.parse(raw) as Partial<ViewPrefs & { bottomOpen?: boolean }>;
+    const p = JSON.parse(raw) as Partial<ViewPrefs & { bottomOpen?: boolean; viewMode?: string }>;
     return {
-      viewMode: p.viewMode === 'piano-roll' ? 'piano-roll' : 'standard',
+      viewMode: p.viewMode === 'legacy' ? 'legacy' : 'piano-roll',
       dockOpen: typeof p.dockOpen === 'boolean' ? p.dockOpen : typeof p.bottomOpen === 'boolean' ? p.bottomOpen : defaults.dockOpen,
       rollTab: p.rollTab && VALID_ROLL_TABS.includes(p.rollTab) ? p.rollTab : defaults.rollTab,
     };

@@ -1,4 +1,4 @@
-> [!WARNING]
+> [!CAUTION]
 > AI-generated code and assets via Claude (via Arena AI Code Area) and Gemini (via AI Studio). While the project idea is my own, the code is not. AI slop is AI slop - but this project was interesting enough to make available on GitHub.
 >
 > \- spade1345

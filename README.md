@@ -1,3 +1,8 @@
+> [!WARNING]
+> AI-generated code and assets via Claude (via Arena AI Code Area) and Gemini (via AI Studio). While the project idea is my own, the code is not. AI slop is AI slop - but this project was interesting enough to make available on GitHub.
+>
+> \- spade1345
+
 # Aeon
 
 Aeon is a browser synthesizer that composes and plays an endless stream of music. Nothing is pre-recorded and there are no loops. A procedural composer writes each bar shortly before you hear it, and a small synthesizer built directly on the Web Audio API plays it.

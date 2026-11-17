@@ -36,6 +36,8 @@ export function Slider({
   hint,
   color = '#a78bfa',
   compact,
+  inline,
+  className,
 }: {
   label: ReactNode;
   value: number;
@@ -47,13 +49,35 @@ export function Slider({
   hint?: string;
   color?: string;
   compact?: boolean;
+  inline?: boolean;
+  className?: string;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
+  const display = format ? format(value) : `${Math.round(value * 100)}%`;
+  if (inline) {
+    return (
+      <label className={cn('flex items-center gap-2 whitespace-nowrap text-xs', className)}>
+        <span className="shrink-0 font-medium text-slate-300">{label}</span>
+        <input
+          type="range"
+          className="range w-16 sm:w-20"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          style={{ '--p': `${pct}%`, '--c': color } as CSSProperties}
+          aria-label={typeof label === 'string' ? label : undefined}
+        />
+        <span className="shrink-0 tabular-nums text-[11px] text-slate-400">{display}</span>
+      </label>
+    );
+  }
   return (
-    <label className="block">
+    <label className={cn('block', className)}>
       <div className={cn('flex items-baseline justify-between text-xs', compact ? 'mb-0' : 'mb-0.5')}>
         <span className="font-medium text-slate-300">{label}</span>
-        <span className="tabular-nums text-slate-400">{format ? format(value) : `${Math.round(value * 100)}%`}</span>
+        <span className="tabular-nums text-slate-400">{display}</span>
       </div>
       <input
         type="range"

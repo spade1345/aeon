@@ -6,7 +6,7 @@ import { lerp } from '@/engine/theory';
 import { GuidePanel } from '@/components/GuidePanel';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from '@/components/Panels';
 import { NowPlaying, keyLabel } from '@/components/NowPlaying';
-import { PianoRollStudio, type SettingsTab } from '@/components/PianoRollStudio';
+import { PianoRollStudio, type RollTab, type SettingsTab } from '@/components/PianoRollStudio';
 import { TransportBar, type ViewMode } from '@/components/TransportBar';
 import { Visualizer } from '@/components/Visualizer';
 import { cn } from '@/utils/cn';
@@ -18,6 +18,8 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'effects', label: 'Effects & performance' },
   { id: 'guide', label: 'How does this work?' },
 ];
+
+const VALID_ROLL_TABS: RollTab[] = ['live', 'style', 'composition', 'instruments', 'effects', 'guide'];
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   playing: { text: 'Composing live', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
@@ -32,21 +34,20 @@ const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)]
 const VIEW_KEY = 'aeon-ui-view-v1';
 interface ViewPrefs {
   viewMode: ViewMode;
-  sideOpen: boolean;
-  bottomOpen: boolean;
+  dockOpen: boolean;
+  rollTab: RollTab;
 }
 
 function loadViewPrefs(): ViewPrefs {
-  const wide = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
-  const defaults: ViewPrefs = { viewMode: 'standard', sideOpen: wide, bottomOpen: false };
+  const defaults: ViewPrefs = { viewMode: 'standard', dockOpen: false, rollTab: 'live' };
   try {
     const raw = localStorage.getItem(VIEW_KEY);
     if (!raw) return defaults;
-    const p = JSON.parse(raw) as Partial<ViewPrefs>;
+    const p = JSON.parse(raw) as Partial<ViewPrefs & { bottomOpen?: boolean }>;
     return {
       viewMode: p.viewMode === 'piano-roll' ? 'piano-roll' : 'standard',
-      sideOpen: typeof p.sideOpen === 'boolean' ? p.sideOpen : defaults.sideOpen,
-      bottomOpen: typeof p.bottomOpen === 'boolean' ? p.bottomOpen : defaults.bottomOpen,
+      dockOpen: typeof p.dockOpen === 'boolean' ? p.dockOpen : typeof p.bottomOpen === 'boolean' ? p.bottomOpen : defaults.dockOpen,
+      rollTab: p.rollTab && VALID_ROLL_TABS.includes(p.rollTab) ? p.rollTab : defaults.rollTab,
     };
   } catch {
     return defaults;
@@ -55,11 +56,11 @@ function loadViewPrefs(): ViewPrefs {
 
 export default function App() {
   const [s, setS] = useState<Settings>(initialSettings);
-  const [tab, setTab] = useState<SettingsTab>('style');
   const [initialPrefs] = useState<ViewPrefs>(loadViewPrefs);
+  const [tab, setTab] = useState<SettingsTab>(() => (initialPrefs.rollTab === 'live' ? 'style' : initialPrefs.rollTab));
   const [viewMode, setViewMode] = useState<ViewMode>(initialPrefs.viewMode);
-  const [sideOpen, setSideOpen] = useState<boolean>(initialPrefs.sideOpen);
-  const [bottomOpen, setBottomOpen] = useState<boolean>(initialPrefs.bottomOpen);
+  const [dockOpen, setDockOpen] = useState<boolean>(initialPrefs.dockOpen);
+  const [rollTab, setRollTab] = useState<RollTab>(initialPrefs.rollTab);
   const st = useSyncExternalStore(player.subscribe, player.getSnapshot);
 
   // push settings into the engine immediately; persist (debounced)
@@ -71,11 +72,24 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(VIEW_KEY, JSON.stringify({ viewMode, sideOpen, bottomOpen }));
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ viewMode, dockOpen, rollTab }));
     } catch {
       /* storage unavailable */
     }
-  }, [viewMode, sideOpen, bottomOpen]);
+  }, [viewMode, dockOpen, rollTab]);
+
+  const onRollTabClick = useCallback(
+    (next: RollTab) => {
+      if (dockOpen && rollTab === next) {
+        setDockOpen(false);
+        return;
+      }
+      setRollTab(next);
+      if (next !== 'live') setTab(next);
+      setDockOpen(true);
+    },
+    [dockOpen, rollTab],
+  );
 
   const update = useCallback((p: Partial<Settings>) => setS((prev) => ({ ...prev, ...p })), []);
   const updateLayer = useCallback(
@@ -131,15 +145,12 @@ export default function App() {
         s={s}
         st={st}
         player={player}
-        tab={tab}
-        setTab={setTab}
+        rollTab={rollTab}
+        dockOpen={dockOpen}
+        onTabClick={onRollTabClick}
         tabs={TABS}
         viewMode={viewMode}
         onViewMode={setViewMode}
-        sideOpen={sideOpen}
-        setSideOpen={setSideOpen}
-        bottomOpen={bottomOpen}
-        setBottomOpen={setBottomOpen}
         badge={badge}
         update={update}
         updateLayer={updateLayer}

@@ -1,0 +1,98 @@
+@import "tailwindcss";
+/*
+ * Keep Tailwind's automatic source scan to the app itself. Without this it also reads the previous
+ * build in dist/ (and the README), finds ordinary words that happen to be utility names, and ships
+ * unused CSS, which made the bundle size depend on whether dist/ already existed.
+ */
+@source not "../dist";
+@source not "../README.md";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #070b14;
+  color: #e2e8f0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Lightweight range slider: fill is driven by CSS vars (--p percent, --c colour). */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--c, #a78bfa) var(--p, 50%), #1e293b var(--p, 50%));
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #1e293b;
+}
+.range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c, #a78bfa);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 2px solid var(--c, #a78bfa);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 2px solid var(--c, #a78bfa);
+}
+.range:focus-visible {
+  outline: 2px solid rgba(167, 139, 250, 0.45);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+select.field {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.scroll-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

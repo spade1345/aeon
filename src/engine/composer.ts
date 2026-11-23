@@ -188,17 +188,16 @@ interface FormOp {
   f?: boolean;
 }
 const FORMS: FormOp[][] = [
-  [{ th: 0, sh: 0 }, { th: 0, sh: 0, v: true }, { th: 0, sh: 1 }, { th: 1, sh: 0 }],
-  [{ th: 0, sh: 0 }, { th: 0, sh: -1 }, { th: 1, sh: 0 }, { th: 0, sh: 0, v: true }],
-  [{ th: 0, sh: 0 }, { th: 1, sh: 0 }, { th: 0, sh: 0, v: true }, { th: 1, sh: -1 }],
-  [{ th: 0, sh: 0 }, { th: 0, sh: 1 }, { th: 0, sh: 2 }, { th: 1, sh: 0 }],
-  [{ th: 0, sh: 0 }, { th: 1, sh: 0 }, { th: 0, sh: 1 }, { th: 1, sh: 0 }],
+  [{ th: 0, sh: 0 }, { th: 0, sh: 0, v: true }, { th: 0, sh: 0 }, { th: 1, sh: 0 }],
+  [{ th: 0, sh: 0 }, { th: 1, sh: 0 }, { th: 0, sh: 0 }, { th: 1, sh: 0, v: true }],
+  [{ th: 0, sh: 0 }, { th: 0, sh: -1 }, { th: 0, sh: 0 }, { th: 1, sh: 0 }],
+  [{ th: 0, sh: 0 }, { th: 0, sh: 1 }, { th: 1, sh: 0 }, { th: 1, sh: 0, v: true }],
 ];
 const BUILD_FORM: FormOp[] = [
   { th: 0, sh: 0 },
   { th: 0, sh: 1, v: true },
   { th: 0, sh: 2 },
-  { th: 0, sh: 3, f: true },
+  { th: 0, sh: 2, f: true },
 ];
 
 const PATCH_KEYS = ['', 'bass', 'chords', 'arp', 'lead', 'texture', 'counter', 'drone', 'mallet'] as const;
@@ -222,6 +221,8 @@ export class Composer {
   private forceType: SectionType | null = null;
   private themes: Theme[] = [];
   private progs: number[][] = [];
+  private chorusForm = 0;
+  private chorusCount = 0;
   private hrBars = 1;
   private bassMode: BassMode = 'groove';
   private tempoScale = 1;
@@ -252,6 +253,8 @@ export class Composer {
     this.sec = null;
     this.barIn = 0;
     this.secCount = 0;
+    this.chorusCount = 0;
+    this.chorusForm = 0;
     this.forceType = null;
     this.prevType = null;
     this.skip = this.replan = this.regenThemes = this.redirect = false;
@@ -382,6 +385,8 @@ export class Composer {
     for (let i = 0; i < 4 && b.join() === a.join(); i++) b = genDegrees(rng, fam, jazzy);
     this.progs = [a, b, genDegrees(rng, fam, jazzy)];
     this.makeThemes(s);
+    this.chorusForm = rng.int(FORMS.length);
+    this.chorusCount = 0;
     this.bassMode = rng.pick(st.bass);
     this.rollPatches(s, true);
   }
@@ -594,19 +599,29 @@ export class Composer {
     const rng = this.rng;
     const m = this.meter;
     const out: LeadBar[] = [];
-    const varP = 0.1 + 0.75 * s.randomness;
     const phrases = Math.max(1, Math.floor(bars / 4));
+    const isChorus = type === 'chorus';
     const forms = type === 'build' ? [BUILD_FORM] : FORMS;
-    let form = rng.pick(forms);
+    let form = isChorus ? FORMS[this.chorusForm % FORMS.length] : rng.pick(forms);
+    const chorusAge = Math.min(1, this.chorusCount / 3);
+    const varBase = 0.08 + 0.5 * s.randomness;
+
     for (let p = 0; p < phrases; p++) {
-      if (p > 0 && rng.chance(0.25)) form = rng.pick(forms);
+      if (!isChorus && p > 0 && rng.chance(0.15)) form = rng.pick(forms);
       for (let j = 0; j < 4; j++) {
         const op = form[j];
         let mo: Motif | null = op.th === 0 ? theme.a : theme.b;
-        if (rng.chance(op.v ? 0.85 : varP * (p > 0 ? 0.6 : 0.3))) mo = this.vary(mo, s);
+        const varyP = isChorus
+          ? op.v
+            ? 0.25 + 0.55 * s.evolution * chorusAge
+            : (0.04 + 0.22 * s.randomness) * (0.3 + 0.7 * chorusAge)
+          : op.v
+            ? 0.75
+            : varBase * (p > 0 ? 0.55 : 0.25);
+        if (rng.chance(varyP)) mo = this.vary(mo, s);
         if (op.f) mo = transform(rng, mo, 'frag', m);
         let shift = op.sh;
-        if (type === 'chorus' && p > 0 && energy > 0.6) shift += 2;
+        if (isChorus && p > 0 && energy > 0.68 && (this.chorusCount > 0 || s.evolution > 0.6)) shift += 2;
         const bi = p * 4 + j;
         if (type === 'breakdown') {
           mo = bi % 2 === 0 ? transform(rng, transform(rng, mo, 'aug', m), 'thin', m) : null;
@@ -615,13 +630,14 @@ export class Composer {
         out.push({ m: mo, shift, cad, oct: 0 });
       }
     }
+    if (isChorus) this.chorusCount++;
     return out;
   }
 
   private vary(mo: Motif, s: Settings): Motif {
     const rng = this.rng;
-    const ops: Op[] = ['orn', 'syn', 'thin', 'frag', 'ret'];
-    const w = [0.2 + 0.7 * s.melodic, 0.25 + 0.4 * s.rhythmic, 0.15, 0.12, 0.04];
+    const ops: Op[] = ['orn', 'thin', 'syn', 'frag'];
+    const w = [0.42 + 0.45 * s.melodic, 0.26, 0.2 + 0.28 * s.rhythmic, 0.08];
     return transform(rng, mo, rng.weighted(ops, w), this.meter);
   }
 
@@ -1182,6 +1198,51 @@ export class Composer {
     }
   }
 
+  private scaleMask(): number {
+    let mask = 0;
+    for (const st of this.scale.steps) mask |= 1 << mod(st, 12);
+    return mask;
+  }
+
+  /**
+   * Place a lead pitch inside [lo, hi] matching `mask`, preserving the motif's target contour while
+   * preventing octave-boundary teleportation and excessive leaps from `prev`.
+   */
+  private placeLeadPitch(
+    rawMidi: number,
+    mask: number,
+    prev: number,
+    lo: number,
+    hi: number,
+    center: number,
+    maxLeap: number,
+    allowRepeat: boolean,
+  ): number {
+    let target = rawMidi;
+    const ref = prev * 0.65 + center * 0.35;
+    while (target - ref > 6) target -= 12;
+    while (ref - target > 6) target += 12;
+    while (target > hi) target -= 12;
+    while (target < lo) target += 12;
+
+    let best = target;
+    let bestCost = Infinity;
+    for (let x = lo; x <= hi; x++) {
+      if (!((mask >> mod(x - this.key, 12)) & 1)) continue;
+      let cost = Math.abs(x - target) * 1.15;
+      const jump = Math.abs(x - prev);
+      if (!allowRepeat && x === prev) cost += 3.2;
+      if (jump > maxLeap) cost += (jump - maxLeap) * 4.5;
+      else if (jump >= 1 && jump <= 2) cost -= 0.45;
+      if (x > hi - 2 || x < lo + 2) cost += 0.75;
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = x;
+      }
+    }
+    return bestCost < Infinity ? best : clamp(target, lo, hi);
+  }
+
   private composeLead(sec: Section, bi: number, e: number, put: Put, base: number, mc: number) {
     const lb = sec.lead[bi];
     if (!lb || !lb.m) return;
@@ -1189,68 +1250,78 @@ export class Composer {
     const steps = m.steps;
     const n = this.scale.steps.length;
     const center = this.style.lead.center;
-    const lo = center - 9;
-    const hi = center + 14;
+    const lo = center - 8;
+    const hi = center + 12;
     const rng = this.rng;
+    const sMask = this.scaleMask();
     const out: { t: number; d: number; midi: number; vel: number }[] = [];
     const cut = lb.cad ? m.starts[Math.max(1, m.beats.length - 2)] : steps;
-    let prev = this.leadPrev;
-    for (const nt of lb.m.notes) {
+    let prev = clamp(this.leadPrev, lo, hi);
+    let prevRawIdx: number | null = null;
+
+    for (let k = 0; k < lb.m.notes.length; k++) {
+      const nt = lb.m.notes[k];
       if (nt.t >= cut) break;
       const idx = sec.anchor + lb.shift + nt.i + lb.oct * n;
-      let midi = this.midiOfIdx(idx);
-      const mask = this.chordAt(sec, base + nt.t).mask;
-      if (nt.s === 2 || (nt.s === 1 && rng.chance(0.62 - 0.35 * mc))) {
-        const raw = midi;
-        midi = this.snap(midi, mask, prev);
-        if (midi === prev && raw !== prev) {
-          // avoid collapsing the contour into a repeated note: step to the next chord tone in its direction
-          const dir = raw > prev ? 1 : -1;
-          for (let d = 1; d <= 5; d++) {
-            if ((mask >> mod(prev + dir * d - this.key, 12)) & 1) {
-              midi = prev + dir * d;
-              break;
-            }
-          }
-        }
-      } else if (nt.d >= 2 && !((mask >> mod(midi - this.key, 12)) & 1) && (mask >> mod(midi - 1 - this.key, 12)) & 1) midi -= 1;
-      while (midi > hi) midi -= 12;
-      while (midi < lo) midi += 12;
+      const rawMidi = this.midiOfIdx(idx);
+      const chord = this.chordAt(sec, base + nt.t);
+      const allowRepeat = prevRawIdx !== null && nt.i === prevRawIdx;
+      const maxLeap = k === 0 ? 9 : 7;
+      let midi: number;
+
+      if (nt.s === 2) {
+        // Strong beats and long notes anchor strictly onto core chord tones (or 7th/9th extensions rarely)
+        const snapMask = mc > 0.78 && rng.chance(0.25) ? chord.mask : chord.coreMask;
+        midi = this.placeLeadPitch(rawMidi, snapMask, prev, lo, hi, center, maxLeap, allowRepeat);
+      } else if (nt.s === 1 && rng.chance(0.84 - 0.24 * mc)) {
+        midi = this.placeLeadPitch(rawMidi, chord.mask, prev, lo, hi, center, maxLeap, allowRepeat);
+      } else {
+        // Passing/neighbor tone: keep within scale and resolve minor-second rubs on beats or longer notes
+        const pc = mod(rawMidi - this.key, 12);
+        const clashesCore =
+          ((chord.coreMask >> mod(pc + 1, 12)) & 1) === 1 || ((chord.coreMask >> mod(pc + 11, 12)) & 1) === 1;
+        const mask = clashesCore && (nt.d >= 2 || m.w[nt.t] >= 1) ? chord.coreMask : sMask;
+        midi = this.placeLeadPitch(rawMidi, mask, prev, lo, hi, center, Math.min(maxLeap, 6), allowRepeat);
+      }
+
       out.push({
         t: nt.t,
         d: Math.min(nt.d, cut - nt.t),
         midi,
-        vel: clamp(0.5 + 0.11 * m.w[nt.t] + 0.12 * e + (rng.next() - 0.5) * 0.08, 0.25, 1),
+        vel: clamp(0.54 + 0.1 * m.w[nt.t] + 0.12 * e + (rng.next() - 0.5) * 0.06, 0.3, 0.96),
       });
       prev = midi;
+      prevRawIdx = nt.i;
     }
+
     if (lb.cad) {
       const chord = this.chordAt(sec, base + cut);
-      let mask = chord.mask;
-      if (lb.cad === 2) {
-        mask = 0;
-        for (let i = 0; i < 3; i++) mask |= 1 << mod(chord.root + chord.iv[i], 12);
-      }
-      let best = prev;
-      let bd = 99;
+      const rootPc = mod(chord.root, 12);
+      const thirdPc = chord.iv[1] !== undefined ? mod(chord.root + chord.iv[1], 12) : rootPc;
+      let best = this.placeLeadPitch(prev, chord.coreMask, prev, lo, hi, center, 5, true);
+      let bestScore = Infinity;
       for (let x = lo; x <= hi; x++) {
-        if (!((mask >> mod(x - this.key, 12)) & 1)) continue;
-        const d = Math.abs(x - prev) + (x > prev ? 0.3 : 0);
-        if (d < bd) {
-          bd = d;
+        const pc = mod(x - this.key, 12);
+        if (!((chord.coreMask >> pc) & 1)) continue;
+        let score = Math.abs(x - prev) + (x > prev ? 0.35 : 0);
+        if (lb.cad === 2 && (pc === rootPc || pc === thirdPc)) score -= 1.25;
+        if (x > hi - 2 || x < lo + 2) score += 0.9;
+        if (score < bestScore) {
+          bestScore = score;
           best = x;
         }
       }
-      out.push({ t: cut, d: Math.max(2, (steps - cut) * 0.9), midi: best, vel: 0.78 });
+      out.push({ t: cut, d: Math.max(2, (steps - cut) * 0.92), midi: best, vel: 0.78 });
       prev = best;
     }
+
     this.leadPrev = prev;
-    const gate = lerp(0.72, 1, this.style.lead.legato);
+    const gate = lerp(0.76, 1, this.style.lead.legato);
     for (let k = 0; k < out.length; k++) {
       const o = out[k];
       const nxt = out[k + 1];
       const d = nxt ? Math.min(o.d, nxt.t - o.t) : o.d;
-      put(o.t, ev(L_LEAD, [o.midi], Math.max(0.8, d * gate), o.vel));
+      put(o.t, ev(L_LEAD, [o.midi], Math.max(0.85, d * gate), o.vel));
     }
   }
 

@@ -65,17 +65,22 @@ export interface MotifParams {
   grid: 1 | 2; // 2 => no 16th-note cells
 }
 
-function pickCell(rng: Rng, L: number, first: boolean, p: MotifParams): Cell {
+function pickCell(rng: Rng, L: number, first: boolean, last: boolean, p: MotifParams): Cell {
   const lib = L === 6 ? CELLS6 : CELLS4;
-  const tgt = 0.08 + p.rc * 0.8;
-  const nT = (L === 6 ? 0.8 : 0.6) + p.dens * 3.0;
+  const tgt = 0.08 + p.rc * 0.72;
+  const nT = (L === 6 ? 0.8 : 0.6) + p.dens * 2.5;
   const ws = lib.map((c) => {
     if (p.grid === 2 && c.fine) return 0;
     if (first && (c.kind !== 'on' || c.on[0][0] > 0)) return 0;
     let w = Math.exp(-((c.c - tgt) * (c.c - tgt)) / 0.08);
-    if (c.kind === 'on') w *= Math.exp(-0.25 * (c.on.length - nT) * (c.on.length - nT));
-    else if (c.kind === 'hold') w *= (1.2 - p.dens) * 0.8;
-    else w *= (1 - p.dens) * 0.45;
+    if (c.kind === 'on') {
+      w *= Math.exp(-0.28 * (c.on.length - nT) * (c.on.length - nT));
+      if (last && c.on.length <= 2) w *= 1.45;
+    } else if (c.kind === 'hold') {
+      w *= (1.25 - p.dens) * (last ? 1.5 : 0.8);
+    } else {
+      w *= (1.05 - p.dens) * (last ? 1.15 : 0.45);
+    }
     return w;
   });
   return rng.weighted(lib, ws);
@@ -84,15 +89,16 @@ function pickCell(rng: Rng, L: number, first: boolean, p: MotifParams): Cell {
 function makeCells(rng: Rng, meter: Meter, p: MotifParams, base?: Cell[]): Cell[] {
   const cells: Cell[] = [];
   const nb = meter.beats.length;
+  // When deriving consequent B from call motif A, keep the opening beat(s) intact for an unmistakable hook
   let mutateAt = -1;
   let mutateAt2 = -1;
   if (base) {
-    mutateAt = 1 + rng.int(Math.max(1, nb - 1));
-    if (rng.chance(0.4)) mutateAt2 = 1 + rng.int(Math.max(1, nb - 1));
+    mutateAt = nb - 1;
+    if (nb >= 3 && rng.chance(0.45)) mutateAt2 = nb - 2;
   }
   for (let b = 0; b < nb; b++) {
     if (base && b !== mutateAt && b !== mutateAt2) cells.push(base[b]);
-    else cells.push(pickCell(rng, meter.beats[b], b === 0, p));
+    else cells.push(pickCell(rng, meter.beats[b], b === 0, b === nb - 1, p));
   }
   return cells;
 }
@@ -112,10 +118,36 @@ function cellsToNotes(cells: Cell[], meter: Meter): { t: number; d: number }[] {
 }
 
 type Shape = 'arch' | 'dip' | 'up' | 'down' | 'wave' | 'flat';
-const SHAPES: Shape[] = ['arch', 'dip', 'up', 'down', 'wave', 'wave', 'arch'];
+const SHAPES: Shape[] = ['arch', 'arch', 'wave', 'wave', 'dip', 'up', 'down'];
 
-/** Pitch contour in scale steps: mostly stepwise, leaps resolved by step in opposite direction. */
-function genContour(rng: Rng, n: number, mc: number): number[] {
+/** Pitch contour in scale steps: hook-friendly repeated tones, stepwise flow, leaps resolved by step. */
+function genContour(rng: Rng, n: number, mc: number, baseContour?: number[]): number[] {
+  if (baseContour && baseContour.length > 0 && n > 2) {
+    const headCount = Math.min(n - 1, Math.max(2, Math.floor(n * 0.55)), baseContour.length);
+    const out = baseContour.slice(0, headCount);
+    let cur = out[out.length - 1];
+    let lastDir = headCount >= 2 ? Math.sign(cur - out[headCount - 2]) : 0;
+    for (let k = headCount; k < n; k++) {
+      const remaining = n - 1 - k;
+      // Steer the answer tail smoothly back toward a stable closing target (0 or +/-1)
+      const target = remaining === 0 ? rng.pick([0, -1, 0, 1]) : 0;
+      const toTarget = target - cur;
+      let step: number;
+      if (Math.abs(toTarget) >= remaining * 2) {
+        step = Math.sign(toTarget) * (Math.abs(toTarget) > 2 ? 2 : 1);
+      } else if (rng.chance(0.22)) {
+        step = 0;
+      } else {
+        const dir = toTarget !== 0 && rng.chance(0.7) ? Math.sign(toTarget) : lastDir !== 0 && rng.chance(0.65) ? -lastDir : rng.chance(0.5) ? 1 : -1;
+        step = dir * (rng.chance(0.82) ? 1 : 2);
+      }
+      cur = clamp(cur + step, -3, 5);
+      lastDir = Math.sign(step);
+      out.push(cur);
+    }
+    return out;
+  }
+
   const out = [0];
   let cur = 0;
   let lastLeap = 0;
@@ -125,48 +157,49 @@ function genContour(rng: Rng, n: number, mc: number): number[] {
     let pUp: number;
     switch (shape) {
       case 'arch':
-        pUp = prog < 0.55 ? 0.78 : 0.2;
+        pUp = prog < 0.55 ? 0.76 : 0.22;
         break;
       case 'dip':
-        pUp = prog < 0.5 ? 0.25 : 0.8;
+        pUp = prog < 0.5 ? 0.28 : 0.78;
         break;
       case 'up':
-        pUp = 0.75;
+        pUp = 0.72;
         break;
       case 'down':
-        pUp = 0.25;
+        pUp = 0.28;
         break;
       case 'wave':
-        pUp = 0.5 + 0.4 * Math.sin(prog * Math.PI * 2);
+        pUp = 0.5 + 0.36 * Math.sin(prog * Math.PI * 2);
         break;
       default:
         pUp = 0.5;
     }
     let mag: number;
     let sign: number;
-    if (lastLeap !== 0 && rng.chance(0.85)) {
+    if (lastLeap !== 0) {
+      // Always resolve melodic leaps by an opposite step for singable balance
       sign = -Math.sign(lastLeap);
-      mag = rng.chance(0.8) ? 1 : 2;
+      mag = rng.chance(0.85) ? 1 : 2;
       lastLeap = 0;
     } else {
       const r = rng.next();
-      const leapP = 0.07 + mc * 0.3;
-      const repP = 0.1 * (1 - mc * 0.5) + 0.03;
+      const leapP = 0.04 + mc * 0.16;
+      const repP = 0.15 * (1 - mc * 0.45) + 0.06;
       sign = rng.chance(pUp) ? 1 : -1;
       if (r < repP) {
         mag = 0;
         lastLeap = 0;
       } else if (r < repP + leapP) {
-        mag = rng.pick([2, 3, 3, 4, 4, 5]);
+        mag = rng.pick([3, 3, 4]);
         lastLeap = sign * mag;
       } else {
-        mag = rng.chance(0.72) ? 1 : 2;
+        mag = rng.chance(0.8) ? 1 : 2;
         lastLeap = 0;
       }
     }
     let nxt = cur + sign * mag;
-    if (nxt > 6 || nxt < -4) nxt = cur - sign * mag;
-    cur = clamp(nxt, -4, 6);
+    if (nxt > 5 || nxt < -3) nxt = cur - sign * mag;
+    cur = clamp(nxt, -3, 5);
     out.push(cur);
   }
   return out;
@@ -178,7 +211,7 @@ function buildMotif(cells: Cell[], contour: number[], meter: Meter): Motif {
     t: r.t,
     d: r.d,
     i: contour[k] ?? 0,
-    // 2 = must be a chord tone (downbeats, long notes), 1 = usually a chord tone, 0 = free passing tone
+    // 2 = must anchor on chord triad core (downbeats, long holds), 1 = prefer chord tone, 0 = passing/neighbor
     s: meter.w[r.t] >= 3 || r.d >= 3 ? 2 : meter.w[r.t] >= 2 ? 1 : 0,
   }));
   return { notes, cells, len: meter.steps };
@@ -187,11 +220,8 @@ function buildMotif(cells: Cell[], contour: number[], meter: Meter): Motif {
 export function makeMotif(rng: Rng, meter: Meter, p: MotifParams, base?: Motif): Motif {
   const cells = makeCells(rng, meter, p, base?.cells);
   const n = cells.reduce((a, c) => a + (c.kind === 'on' ? c.on.length : 0), 0);
-  const contour = genContour(rng, Math.max(1, n), p.mc);
-  if (base && contour.length > 2) {
-    // "answer" motif: finish a little lower than the call
-    contour[contour.length - 1] = clamp(contour[contour.length - 1] - 1, -4, 6);
-  }
+  const baseContour = base ? base.notes.map((x) => x.i) : undefined;
+  const contour = genContour(rng, Math.max(1, n), p.mc, baseContour);
   return buildMotif(cells, contour, meter);
 }
 
@@ -201,7 +231,7 @@ export function makeTheme(rng: Rng, meter: Meter, p: MotifParams): Theme {
   return { a, b };
 }
 
-/** Contrasting theme sharing the rhythmic DNA of another: inverted contour. */
+/** Contrasting theme sharing the rhythmic DNA of another: gentle diatonic inversion keeping anchor intact. */
 export function invertTheme(t: Theme, meter: Meter, rng: Rng): Theme {
   return {
     a: transform(rng, t.a, 'inv', meter),

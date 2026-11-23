@@ -42,7 +42,7 @@ const LAYER_SPECS: Record<string, LayerSpec> = {
     pan: '+0.10',
     sends: '0.35 / 0.30 / 0.30',
     duck: 'No',
-    logic: 'Scale-index call/answer motifs snapped to structural chord tones; undergoes inv, ret, thin, orn, syn, frag, and aug transforms.',
+    logic: 'Coherent A/B hook motifs locked short-term per chorus; triad-core anchoring on downbeats & cadences with leap-bounded register continuity (orn, thin, syn, frag).',
   },
   texture: {
     prio: 0,
@@ -160,7 +160,7 @@ bestVoicing = argmin_{rot, Δ} cost(c)`}
         <h3 className="text-sm font-semibold text-white">03. Scale-Index Motifs &amp; Euclidean Rhythm Masks</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <p className="text-xs leading-relaxed text-slate-400">
-            <span className="font-semibold text-slate-200">Scale-step abstraction:</span> Melodic cells store relative scale degrees <span className="font-mono text-slate-200">MNote &#123; t, d, i, s &#125;</span> with metric structural weights (<span className="font-mono text-slate-200 tabular-nums">s = 2</span> chord-locked downbeats, <span className="font-mono tabular-nums">0</span> passing tones). Rhythmic cells are sampled by Gaussian distance <span className="font-mono text-slate-200 tabular-nums">exp(-(c - tgt)² / 0.08)</span> and mutated via <span className="font-mono text-slate-200">inv, ret, thin, orn, syn, frag, aug</span>.
+            <span className="font-semibold text-slate-200">Scale-step abstraction:</span> Call/answer motif cells store relative scale degrees <span className="font-mono text-slate-200">MNote &#123; t, d, i, s &#125;</span> with structural weights (<span className="font-mono text-slate-200 tabular-nums">s = 2</span> triad <span className="font-mono text-slate-200">coreMask</span> downbeats/cadences, <span className="font-mono tabular-nums">0</span> rub-guarded passing tones) placed by minimum-leap cost without octave wrapping. Chorus phrases lock form short-term and evolve via <span className="font-mono text-slate-200">orn, thin, syn, frag</span>.
           </p>
           <p className="text-xs leading-relaxed text-slate-400">
             <span className="font-semibold text-slate-200">Meters &amp; Euclidean masks:</span> Compound and odd meters (<span className="font-mono text-slate-200 tabular-nums">4/4, 3/4, 6/8, 5/4, 7/8, 12/8</span>) encode per-step metric weight arrays (<span className="font-mono tabular-nums">4 → 0</span>). Arpeggio, mallet, and auxiliary percussion gate patterns spread <span className="font-mono text-slate-200">k</span> hits across <span className="font-mono text-slate-200">n</span> steps uniformly via <span className="font-mono text-slate-200 tabular-nums">((i · k) mod n) &lt; k</span>.

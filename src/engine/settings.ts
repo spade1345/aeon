@@ -53,8 +53,8 @@ export const LAYER_DEFS = [
 const DEFAULT_VOLUMES = [0.8, 0.85, 0.75, 0.55, 0.7, 0.5, 0.62, 0.52, 0.58];
 
 function defaultLayers(): LayerSettings[] {
-  return DEFAULT_VOLUMES.map((v) => ({
-    enabled: true,
+  return DEFAULT_VOLUMES.map((v, i) => ({
+    enabled: i !== 4 && i !== 6,
     volume: v,
     patch: 'auto',
     brightness: 0.5,

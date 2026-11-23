@@ -112,6 +112,7 @@ export interface Chord {
   deg: number; // scale degree (0..6) or -1 for chromatic chords
   suf: string; // name suffix ("m7", "maj9", ...)
   mask: number; // pitch classes (relative to tonic) as a 12-bit mask
+  coreMask: number; // triad core pitch classes [root, 3rd, 5th] as a 12-bit mask
   pool?: number[]; // cached arpeggio pool
   poolKey?: number;
 }
@@ -144,8 +145,13 @@ export function chordSuffix(iv: number[]): string {
 
 export function finishChord(root: number, iv: number[], deg: number): Chord {
   let mask = 0;
-  for (const i of iv) mask |= 1 << mod(root + i, 12);
-  return { root: mod(root, 12), iv, deg, suf: chordSuffix(iv), mask };
+  let coreMask = 0;
+  for (let k = 0; k < iv.length; k++) {
+    const bit = 1 << mod(root + iv[k], 12);
+    mask |= bit;
+    if (k < 3) coreMask |= bit;
+  }
+  return { root: mod(root, 12), iv, deg, suf: chordSuffix(iv), mask, coreMask };
 }
 
 /** Stack thirds on a degree of the parent heptatonic scale. ext: 0 triad, 1 seventh, 2 ninth. */

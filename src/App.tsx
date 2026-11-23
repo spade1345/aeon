@@ -7,6 +7,7 @@ import { GuidePanel } from '@/components/GuidePanel';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from '@/components/Panels';
 import { NowPlaying, keyLabel } from '@/components/NowPlaying';
 import { PianoRollStudio, type RollTab, type SettingsTab } from '@/components/PianoRollStudio';
+import { OfflineIndicator, PWAInstallButton } from '@/components/PWAControls';
 import { TransportBar, type ViewMode } from '@/components/TransportBar';
 import { Visualizer } from '@/components/Visualizer';
 import { cn } from '@/utils/cn';
@@ -182,6 +183,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <PWAInstallButton />
             <span className="hidden rounded-lg border border-slate-800 px-2.5 py-1 font-mono text-[11px] text-slate-500 sm:inline">seed {st.seed}</span>
             <span className={cn('rounded-full border px-3 py-1 text-xs font-semibold', badge.cls)}>{badge.text}</span>
           </div>
@@ -259,6 +261,7 @@ export default function App() {
           Every note is generated live by a procedural composer (motifs, chord grammar, form model) and a Web Audio synth. Nothing is pre-recorded.
         </footer>
       </div>
+      <OfflineIndicator />
     </div>
   );
 }

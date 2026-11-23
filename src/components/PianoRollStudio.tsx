@@ -7,6 +7,7 @@ import { cn } from '@/utils/cn';
 import { GuidePanel } from './GuidePanel';
 import { keyLabel, TYPE_STYLE } from './NowPlaying';
 import { CompositionPanel, EffectsPanel, InstrumentsPanel, StylePanel } from './Panels';
+import { OfflineIndicator, PWAInstallButton } from './PWAControls';
 import { TransportBar, type ViewMode } from './TransportBar';
 import { Visualizer } from './Visualizer';
 import { Slider, Toggle } from './ui';
@@ -150,6 +151,7 @@ export function PianoRollStudio({
                   <span className="hidden truncate text-slate-300 xl:inline">
                     {st.type ? keyLabel(st.key, st.scale) : 'Ready'}
                   </span>
+                  <PWAInstallButton compact />
                   <span className={cn('shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold', badge.cls)}>
                     {badge.text}
                   </span>
@@ -308,6 +310,7 @@ export function PianoRollStudio({
           </div>
         </div>
       </div>
+      <OfflineIndicator isPianoRoll />
     </div>
   );
 }
